@@ -1,0 +1,53 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["Summary", "Markdown", "Entries"],
+  "properties": {
+    "Summary": {
+      "type": "string",
+      "description": "One-paragraph summary of the sprint release.",
+      "minLength": 1
+    },
+    "Markdown": {
+      "type": "string",
+      "description": "Pre-rendered markdown ready for Confluence/Slack/email.",
+      "minLength": 1
+    },
+    "Entries": {
+      "type": "array",
+      "description": "Per-change entries grouped by category.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["Category", "Title", "Description", "PR", "Tickets"],
+        "properties": {
+          "Category": {
+            "type": "string",
+            "enum": ["feature", "improvement", "bugfix", "security", "breaking_change", "chore"]
+          },
+          "Title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "Description": {
+            "type": "string"
+          },
+          "PR": {
+            "type": "string",
+            "description": "RepoMind PullRequestID (UUID).",
+            "minLength": 1
+          },
+          "Tickets": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Jira ticket key, e.g. MARV-123.",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,110 @@
+# Compose v2 file. The top-level `version` key is deliberately omitted
+# (deprecated since Compose v1 → v2 migration; v2 emits a warning if
+# present).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: repomind
+      POSTGRES_PASSWORD: repomind
+      POSTGRES_DB: repomind
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U repomind -d repomind"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../migrations:/migrations:ro
+    command:
+      - -path=/migrations
+      - -database=postgres://repomind:repomind@postgres:5432/repomind?sslmode=disable
+      - up
+
+  repomind:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      REPOMIND_HTTP_ADDR: ":8080"
+      # HTTP server tuning (M9). API_KEY is optional — when empty the
+      # operator API surface (`/api/v1/*`) is NOT REGISTERED at all
+      # (fail-closed). Generate one with: openssl rand -hex 32
+      REPOMIND_HTTP_API_KEY: ${REPOMIND_HTTP_API_KEY:-}
+      REPOMIND_HTTP_SHUTDOWN_TIMEOUT: ${REPOMIND_HTTP_SHUTDOWN_TIMEOUT:-15s}
+      REPOMIND_LOG_LEVEL: ${REPOMIND_LOG_LEVEL:-info}
+      REPOMIND_LOG_FORMAT: ${REPOMIND_LOG_FORMAT:-json}
+      REPOMIND_POSTGRES_DSN: "postgres://repomind:repomind@postgres:5432/repomind?sslmode=disable"
+      # ---- GitHub (App auth + repo allow-list) ----
+      # All values below come from the host env / secret manager. Set
+      # them in your shell or via `docker compose --env-file=.env up`.
+      REPOMIND_GITHUB_APP_ID: ${REPOMIND_GITHUB_APP_ID:-}
+      REPOMIND_GITHUB_INSTALLATION_ID: ${REPOMIND_GITHUB_INSTALLATION_ID:-}
+      # The private key is mounted at /secrets (read-only). The host
+      # file MUST be named `github-app.pem` — the dev key file with
+      # the long name (repomind-shl-india-dev.2026-06-26...) needs
+      # to be renamed or symlinked for this container path to resolve.
+      REPOMIND_GITHUB_PRIVATE_KEY_PATH: /secrets/github-app.pem
+      REPOMIND_GITHUB_BASE_URL: ${REPOMIND_GITHUB_BASE_URL:-}
+      REPOMIND_GITHUB_WEBHOOK_SECRET: ${REPOMIND_GITHUB_WEBHOOK_SECRET:-}
+      REPOMIND_GITHUB_REPOS: ${REPOMIND_GITHUB_REPOS:-}
+      # M10 PR target-branch policy. Path is relative to the working
+      # directory inside the container; the configs/ dir is baked
+      # into the image at /app/configs (see Dockerfile).
+      REPOMIND_GITHUB_REPO_POLICY_PATH: ${REPOMIND_GITHUB_REPO_POLICY_PATH:-/app/configs/repo-policy.yaml}
+      # ---- Jira (sprint source of truth) ----
+      REPOMIND_JIRA_BASE_URL: ${REPOMIND_JIRA_BASE_URL:-}
+      REPOMIND_JIRA_AUTH_MODE: ${REPOMIND_JIRA_AUTH_MODE:-basic}
+      REPOMIND_JIRA_EMAIL: ${REPOMIND_JIRA_EMAIL:-}
+      REPOMIND_JIRA_API_TOKEN: ${REPOMIND_JIRA_API_TOKEN:-}
+      REPOMIND_JIRA_PROJECT_KEY: ${REPOMIND_JIRA_PROJECT_KEY:-}
+      REPOMIND_JIRA_BOARD_ID: ${REPOMIND_JIRA_BOARD_ID:-}
+      REPOMIND_JIRA_TEAM_NAME: ${REPOMIND_JIRA_TEAM_NAME:-}
+      REPOMIND_JIRA_SPRINT_NAME_PREFIX: ${REPOMIND_JIRA_SPRINT_NAME_PREFIX:-}
+      REPOMIND_JIRA_QA_OWNER_FIELD_ID: ${REPOMIND_JIRA_QA_OWNER_FIELD_ID:-}
+      # ---- Confluence ----
+      REPOMIND_CONFLUENCE_BASE_URL: ${REPOMIND_CONFLUENCE_BASE_URL:-}
+      REPOMIND_CONFLUENCE_EMAIL: ${REPOMIND_CONFLUENCE_EMAIL:-}
+      REPOMIND_CONFLUENCE_API_TOKEN: ${REPOMIND_CONFLUENCE_API_TOKEN:-}
+      REPOMIND_CONFLUENCE_PAGE_ID: ${REPOMIND_CONFLUENCE_PAGE_ID:-}
+      # ---- AI (OpenAI-compatible: openai | github_models | azure_openai) ----
+      # Dev default is github_models (free, uses a GitHub PAT with
+      # models:read scope). Flip to azure_openai or openai in prod.
+      REPOMIND_AI_DEPLOYMENT: ${REPOMIND_AI_DEPLOYMENT:-github_models}
+      REPOMIND_AI_BASE_URL: ${REPOMIND_AI_BASE_URL:-}
+      REPOMIND_AI_AZURE_API_VERSION: ${REPOMIND_AI_AZURE_API_VERSION:-}
+      REPOMIND_AI_MODEL: ${REPOMIND_AI_MODEL:-gpt-4o-mini}
+      REPOMIND_AI_API_KEY: ${REPOMIND_AI_API_KEY:-}
+      # ---- Worker / Ticker (M10) ----
+      REPOMIND_WORKER_POLL_INTERVAL: ${REPOMIND_WORKER_POLL_INTERVAL:-30s}
+      REPOMIND_WORKER_BATCH_SIZE: ${REPOMIND_WORKER_BATCH_SIZE:-32}
+      REPOMIND_WORKER_MAX_ATTEMPTS: ${REPOMIND_WORKER_MAX_ATTEMPTS:-5}
+      REPOMIND_WORKER_BASE_BACKOFF: ${REPOMIND_WORKER_BASE_BACKOFF:-30s}
+      REPOMIND_WORKER_HANDLER_TIMEOUT: ${REPOMIND_WORKER_HANDLER_TIMEOUT:-2m}
+      REPOMIND_WORKER_SHUTDOWN_GRACE: ${REPOMIND_WORKER_SHUTDOWN_GRACE:-30s}
+      REPOMIND_TICKER_ENABLED: ${REPOMIND_TICKER_ENABLED:-true}
+      REPOMIND_TICKER_INTERVAL: ${REPOMIND_TICKER_INTERVAL:-5m}
+    volumes:
+      # Mount the GitHub App private key into the container. The host
+      # path is gitignored (./secrets/* + *.pem).
+      - ../secrets:/secrets:ro
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata: {}

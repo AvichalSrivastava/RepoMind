@@ -1,0 +1,35 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+dist/
+
+# Test / coverage output
+coverage.txt
+coverage.html
+*.coverprofile
+
+# Go workspace
+go.work
+go.work.sum
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+secrets/*
+!secrets/.gitkeep
+*.pem
+*.key
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

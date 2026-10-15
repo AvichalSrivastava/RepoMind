@@ -1,0 +1,12 @@
+.git
+.github
+bin
+dist
+coverage.txt
+coverage.html
+*.md
+!README.md
+.env
+.env.*
+!.env.example
+README.md.new

@@ -1,0 +1,99 @@
+#!/bin/sh
+# RepoMind pre-commit hook — block secrets from ever being committed.
+#
+# Install:   make hooks
+# Bypass:    git commit --no-verify   (DO NOT make a habit of this)
+#
+# This hook is intentionally conservative — false positives are cheap to
+# resolve (`--no-verify` or fix the staged content); false negatives
+# (leaked credentials) are very expensive.
+set -eu
+
+red()    { printf '\033[31m%s\033[0m\n' "$*" >&2; }
+yellow() { printf '\033[33m%s\033[0m\n' "$*" >&2; }
+bold()   { printf '\033[1m%s\033[0m\n'  "$*" >&2; }
+
+fail=0
+
+# ---------------------------------------------------------------------------
+# 1. Block staged filenames that obviously hold credentials.
+# ---------------------------------------------------------------------------
+bad_name_pattern='\.(pem|key|p12|pfx|jks|keystore)$|(^|/)(id_rsa|id_ed25519|credentials|service-account.*\.json|\.env(\..+)?)$'
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ -n "$staged_files" ]; then
+    bad_names=$(printf '%s\n' "$staged_files" | grep -E "$bad_name_pattern" || true)
+    # .env.example is the documented public template — explicitly allow it.
+    bad_names=$(printf '%s\n' "$bad_names" | grep -v '^\.env\.example$' || true)
+    if [ -n "$bad_names" ]; then
+        red   "ERROR: refusing to commit files that look like credentials:"
+        printf '  %s\n' $bad_names >&2
+        yellow "Move them under ./secrets/ (gitignored), or to your private .env."
+        fail=1
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Scan staged *content* for high-confidence secret signatures.
+#    We diff only the added lines (^+, excluding the +++ header) so renames
+#    and removals don't trip us up.
+# ---------------------------------------------------------------------------
+added_lines=$(git diff --cached --no-color --unified=0 --diff-filter=ACMR \
+              -- ':(exclude)scripts/git-hooks/pre-commit' \
+              | grep -E '^\+' \
+              | grep -vE '^\+\+\+' || true)
+
+if [ -n "$added_lines" ]; then
+    # Patterns chosen for low false-positive rate and high signal.
+    # If you intentionally need to commit one of these (e.g. a docs example),
+    # break the literal up so it doesn't appear contiguously in source.
+    # NOTE: each line below is one ERE pattern. Lines beginning with # are skipped.
+    secret_patterns=$(cat <<'EOF'
+-----BEGIN [A-Z ]*PRIVATE KEY-----
+\bghp_[A-Za-z0-9]{30,}\b
+\bghs_[A-Za-z0-9]{30,}\b
+\bgho_[A-Za-z0-9]{30,}\b
+\bgithub_pat_[A-Za-z0-9_]{30,}\b
+\bxox[abprs]-[A-Za-z0-9-]{10,}\b
+\bsk-[A-Za-z0-9]{40,}\b
+\bsk-proj-[A-Za-z0-9_-]{30,}\b
+\bAKIA[0-9A-Z]{16}\b
+\bATATT3[A-Za-z0-9_=-]{20,}\b
+\bAIza[0-9A-Za-z_-]{30,}\b
+EOF
+)
+    hits=""
+    # Read patterns line-by-line so spaces inside patterns survive.
+    OLD_IFS=$IFS
+    IFS='
+'
+    for pat in $secret_patterns; do
+        case "$pat" in ''|\#*) continue ;; esac
+        # `grep -E -e <pat>`: -e prevents leading `-` in pattern being taken as flag.
+        match=$(printf '%s\n' "$added_lines" | grep -E -e "$pat" || true)
+        if [ -n "$match" ]; then
+            hits="${hits}
+  pattern: ${pat}
+$(printf '%s' "$match" | head -n 3 | sed 's/^/    /')"
+        fi
+    done
+    IFS=$OLD_IFS
+
+    if [ -n "$hits" ]; then
+        red "ERROR: secret-like content detected in staged changes:"
+        printf '%s\n' "$hits" >&2
+        yellow ""
+        yellow "Rewrite the staged lines, OR if this is a knowingly safe match"
+        yellow "(e.g. a redacted example), commit with: git commit --no-verify"
+        fail=1
+    fi
+fi
+
+if [ $fail -ne 0 ]; then
+    bold ""
+    bold "Commit blocked. See messages above."
+    exit 1
+fi
+
+exit 0

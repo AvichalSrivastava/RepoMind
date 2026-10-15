@@ -1,0 +1,40 @@
+# RepoMind — repository target-branch policy
+# -----------------------------------------------------------------------------
+# Filters which PR webhooks RepoMind analyses, by target branch.
+#
+# Loaded at startup from REPOMIND_GITHUB_REPO_POLICY_PATH. When the
+# env var is empty (or this file is missing), NO branch filtering
+# happens and every PR in REPOMIND_GITHUB_REPOS is analysed.
+#
+# Matching rules:
+#   * Repo full_name comparison is case-insensitive.
+#   * Branch comparison is case-insensitive.
+#   * A pattern containing `*` is a glob; `*` matches any character
+#     sequence (including `/`).
+#   * Empty target_branches: [] means "mute this repo entirely".
+#   * A repo NOT listed below falls through to default_target_branches.
+#   * If both lists are empty for a repo, the policy accepts every
+#     branch for that repo (fail-open per-repo).
+# -----------------------------------------------------------------------------
+
+# Defaults applied to every repo in REPOMIND_GITHUB_REPOS that has no
+# explicit override below.
+default_target_branches:
+  - qa
+
+repos:
+  # TDM-data-management-ui — sprint-family QA branches + adhoc release train.
+  # NOTE: branches use UNDERSCORE (test_sprint_187), not dash. The
+  # `R_ti_adhoc_<N>` family is the adhoc release branch pattern used
+  # for hotfixes/side-tracks alongside the main sprint branch.
+  - full_name: SHL-India/TDM-data-management-ui
+    target_branches:
+      - "test_sprint_*"
+      - "R_ti_adhoc_*"
+
+  # TDM-tcplus-group-manager — sprint-<NUMBER> + adhoc release train.
+  # Branches: sprint_187, sprint_188, ..., R_ti_adhoc_187, etc.
+  - full_name: SHL-India/TDM-tcplus-group-manager
+    target_branches:
+      - "sprint_*"
+      - "R_ti_adhoc_*"

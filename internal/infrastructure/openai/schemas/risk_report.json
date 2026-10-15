@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["Level", "Factors", "Explanation", "Confidence"],
+  "properties": {
+    "Level": {
+      "type": "integer",
+      "description": "Risk level enum: 1=Low, 2=Medium, 3=High, 4=Critical.",
+      "minimum": 1,
+      "maximum": 4
+    },
+    "Factors": {
+      "type": "array",
+      "description": "Named risk factors that contributed to the score.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "many_files",
+          "large_diff",
+          "database_migration",
+          "authentication_change",
+          "payment_change",
+          "infra_config_change",
+          "public_api_change",
+          "minimal_review"
+        ]
+      }
+    },
+    "Explanation": {
+      "type": "string",
+      "description": "Markdown rationale that justifies the risk level.",
+      "minLength": 1
+    },
+    "Confidence": {
+      "type": "number",
+      "description": "Confidence in the assessment, 0..1.",
+      "minimum": 0,
+      "maximum": 1
+    }
+  }
+}

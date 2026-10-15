@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["Summary", "RegressionAreas", "ImpactedModules", "Scenarios"],
+  "properties": {
+    "Summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "RegressionAreas": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "ImpactedModules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "Scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["Title", "Description", "Priority", "Module"],
+        "properties": {
+          "Title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "Description": {
+            "type": "string"
+          },
+          "Priority": {
+            "type": "integer",
+            "description": "Test priority enum: 1=P3, 2=P2, 3=P1, 4=P0.",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "Module": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

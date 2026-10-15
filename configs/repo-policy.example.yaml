@@ -1,0 +1,16 @@
+# RepoMind — repository target-branch policy (example template)
+# -----------------------------------------------------------------------------
+# Copy to repo-policy.yaml and customise. See policy.go documentation
+# for the full matching semantics.
+# -----------------------------------------------------------------------------
+
+default_target_branches:
+  - main
+
+repos:
+  - full_name: my-org/special-repo
+    target_branches:
+      - develop
+      - "release/v*"
+  - full_name: my-org/muted-repo
+    target_branches: []   # explicit mute -- defaults do NOT apply
